@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 
+
 #include <errno.h>
 #include <getopt.h>
 #include <netdb.h>
@@ -68,12 +69,17 @@ int main(int argc, char **argv) {
     case 0: {
       switch (option_index) {
       case 0:
-        ConvertStringToUI64(optarg, &k);
+        if(!ConvertStringToUI64(optarg, &k)||k<=0)
+          {printf("enter k_num correctly");
+          exit(1);
+          }
         // TODO: your code here
         break;
       case 1:
-        ConvertStringToUI64(optarg, &mod);
-        // TODO: your code here
+        if(!ConvertStringToUI64(optarg, &mod)||mod<=0);
+         {printf("enter k_num correctly");
+          exit(1);
+          }
         break;
       case 2:
         // TODO: your code here
@@ -99,13 +105,30 @@ int main(int argc, char **argv) {
   }
 
   // TODO: for one server here, rewrite with servers from file
-  unsigned int servers_num = 1;
+  unsigned int servers_num = 0;
+  FILE* fl;   char **ports=(char**)calloc(sizeof(char*),servers_num);
+  fopen(fl,servers);  
+  ports[0]=calloc(sizeof(char),10);
+   while(fscanf(fl,ports[servers_num])==1)
+  {    
+    servers_num++;
+    ports[0]=calloc(sizeof(char),10);
+  }
+  free(ports[servers_num]);    
+  close(fl);
   struct Server *to = malloc(sizeof(struct Server) * servers_num);
-  // TODO: delete this and parallel work between servers
-  to[0].port = 20001;
-  memcpy(to[0].ip, "127.0.0.1", sizeof("127.0.0.1"));
-
+    // TODO: delete this and parallel work between servers  
+  for (int i = 0; i < servers_num; i++)  
+  {
+      ConvertStringToUI64(ports[i],&to[i].port);
+      memcpy(to[0].ip, "127.0.0.1", sizeof("127.0.0.1"));
+      free(ports[i]);
+  }  
   // TODO: work continiously, rewrite to make parallel
+
+  int step=k/servers_num;
+
+  
   for (int i = 0; i < servers_num; i++) {
     struct hostent *hostname = gethostbyname(to[i].ip);
     if (hostname == NULL) {
@@ -129,10 +152,23 @@ int main(int argc, char **argv) {
       exit(1);
     }
 
+
     // TODO: for one server
     // parallel between servers
-    uint64_t begin = 1;
-    uint64_t end = k;
+     uint64_t begin=1;
+     uint64_t end=1;     
+    if (i==servers_num-1)
+    { begin = (i*step);
+     end =k;
+    }
+    else
+    {
+      begin =(i*step)+1;
+      end =(i+1)*step+1;      
+    }  
+
+
+  
 
     char task[sizeof(uint64_t) * 3];
     memcpy(task, &begin, sizeof(uint64_t));
@@ -149,13 +185,15 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Recieve failed\n");
       exit(1);
     }
+    
 
     // TODO: from one server
     // unite results
+    uint64_t res=1;
     uint64_t answer = 0;
     memcpy(&answer, response, sizeof(uint64_t));
     printf("answer: %llu\n", answer);
-
+    res*=answer;
     close(sck);
   }
   free(to);
