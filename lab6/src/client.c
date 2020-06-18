@@ -13,23 +13,11 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "libr.h"
 struct Server {
   char ip[255];
   int port;
 };
-
-uint64_t MultModulo(uint64_t a, uint64_t b, uint64_t mod) {
-  uint64_t result = 0;
-  a = a % mod;
-  while (b > 0) {
-    if (b % 2 == 1)
-      result = (result + a) % mod;
-    a = (a * 2) % mod;
-    b /= 2;
-  }
-
-  return result % mod;
-}
 
 bool ConvertStringToUI64(const char *str, uint64_t *val) {
   char *end = NULL;
@@ -69,21 +57,22 @@ int main(int argc, char **argv) {
     case 0: {
       switch (option_index) {
       case 0:
-        if(!ConvertStringToUI64(optarg, &k)||k<=0)
+        if(!ConvertStringToUI64(optarg, &k))
           {printf("enter k_num correctly");
           exit(1);
           }
         // TODO: your code here
         break;
       case 1:
-        if(!ConvertStringToUI64(optarg, &mod)||mod<=0);
-         {printf("enter k_num correctly");
+        if(!ConvertStringToUI64(optarg, &mod))
+         {printf("enter mod correctly");
           exit(1);
           }
         break;
       case 2:
         // TODO: your code here
         memcpy(servers, optarg, strlen(optarg));
+
         break;
       default:
         printf("Index %d is out of options\n", option_index);
@@ -105,30 +94,30 @@ int main(int argc, char **argv) {
   }
 
   // TODO: for one server here, rewrite with servers from file
-  unsigned int servers_num = 0;
-  FILE* fl;   char **ports=(char**)calloc(sizeof(char*),servers_num);
-  fopen(fl,servers);  
-  ports[0]=calloc(sizeof(char),10);
-   while(fscanf(fl,ports[servers_num])==1)
+  unsigned int servers_num = 1;
+  FILE* fl =fopen(servers,"r"); 
+  while(!feof(fl))
   {    
-    servers_num++;
-    ports[0]=calloc(sizeof(char),10);
+    if(fgetc(fl)=='\n')
+      servers_num++;    
   }
-  free(ports[servers_num]);    
+  int *ports= malloc(sizeof(int)*servers_num); 
   close(fl);
+  fl =fopen(servers,"r");
   struct Server *to = malloc(sizeof(struct Server) * servers_num);
-    // TODO: delete this and parallel work between servers  
+  // TODO: delete this and parallel work between servers  
   for (int i = 0; i < servers_num; i++)  
-  {
-      ConvertStringToUI64(ports[i],&to[i].port);
-      memcpy(to[0].ip, "127.0.0.1", sizeof("127.0.0.1"));
-      free(ports[i]);
+  {   
+      fscanf(fl,"%d",&ports[i]);
+      memcpy(&to[i].port,&ports[i],sizeof(int));
+      memcpy(to[i].ip, "127.0.0.1", sizeof("127.0.0.1"));      
   }  
+  free(ports);
   // TODO: work continiously, rewrite to make parallel
 
   int step=k/servers_num;
 
-  
+  uint64_t res=1;
   for (int i = 0; i < servers_num; i++) {
     struct hostent *hostname = gethostbyname(to[i].ip);
     if (hostname == NULL) {
@@ -139,7 +128,7 @@ int main(int argc, char **argv) {
     struct sockaddr_in server;
     server.sin_family = AF_INET;
     server.sin_port = htons(to[i].port);
-    server.sin_addr.s_addr = *((unsigned long *)hostname->h_addr);
+    server.sin_addr.s_addr = *((unsigned long *)hostname->h_addr_list[0]);
 
     int sck = socket(AF_INET, SOCK_STREAM, 0);
     if (sck < 0) {
@@ -158,17 +147,14 @@ int main(int argc, char **argv) {
      uint64_t begin=1;
      uint64_t end=1;     
     if (i==servers_num-1)
-    { begin = (i*step);
+    { begin = (i*step)+1;
      end =k;
     }
     else
     {
       begin =(i*step)+1;
-      end =(i+1)*step+1;      
+      end =(i+1)*step;      
     }  
-
-
-  
 
     char task[sizeof(uint64_t) * 3];
     memcpy(task, &begin, sizeof(uint64_t));
@@ -184,18 +170,22 @@ int main(int argc, char **argv) {
     if (recv(sck, response, sizeof(response), 0) < 0) {
       fprintf(stderr, "Recieve failed\n");
       exit(1);
-    }
-    
+    }   
 
     // TODO: from one server
     // unite results
-    uint64_t res=1;
+    
     uint64_t answer = 0;
     memcpy(&answer, response, sizeof(uint64_t));
-    printf("answer: %llu\n", answer);
-    res*=answer;
+    printf("answer from server : %llu\n", answer);
+    res=answer*res;
+    res=res % mod;    
+    if(i==servers_num-1)
+    printf("result: %llu\n", res);
     close(sck);
   }
+  
+  
   free(to);
 
   return 0;
